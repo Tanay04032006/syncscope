@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="SyncScope is a real-time laboratory for exploring interprocess communication and concurrency.">
+  <meta name="theme-color" content="#0a0c12">
+  <title>SyncScope — IPC & Concurrency Lab</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="Primary navigation">
+      <a class="brand" href="#lab" aria-label="SyncScope home">
+        <span class="brand-mark"><span></span><span></span><span></span></span>
+        <span><strong>SyncScope</strong><small>Systems laboratory</small></span>
+      </a>
+
+      <nav class="nav-list">
+        <button class="nav-item active" data-view="lab" aria-current="page">
+          <span class="nav-icon">⌁</span><span>Live Lab</span>
+        </button>
+        <button class="nav-item" data-view="race">
+          <span class="nav-icon">⚡</span><span>Race Lab</span>
+        </button>
+        <button class="nav-item" data-view="benchmark">
+          <span class="nav-icon">▥</span><span>Benchmarks</span>
+        </button>
+        <button class="nav-item" data-view="tools">
+          <span class="nav-icon">⌘</span><span>Tool Lab</span>
+        </button>
+        <button class="nav-item" data-view="learn">
+          <span class="nav-icon">◎</span><span>Learn</span>
+        </button>
+      </nav>
+
+      <div class="system-card">
+        <div class="system-card-head"><span class="status-dot"></span> Engine online</div>
+        <dl>
+          <div><dt>Host</dt><dd id="system-platform">Detecting…</dd></div>
+          <div><dt>Server PID</dt><dd id="system-pid">—</dd></div>
+          <div><dt>CPU cores</dt><dd id="system-cpus">—</dd></div>
+        </dl>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow" id="page-eyebrow">INTERPROCESS COMMUNICATION</p>
+          <h1 id="page-title">Live IPC Laboratory</h1>
+        </div>
+        <div class="topbar-actions">
+          <span class="live-badge"><span></span> Local engine</span>
+          <button class="icon-button" id="theme-toggle" aria-label="Toggle light and dark theme" title="Toggle theme">◐</button>
+        </div>
+      </header>
+
+      <section class="view active" id="view-lab">
+        <div class="metric-row">
+          <article class="metric-card accent-teal">
+            <span class="metric-label">TRANSPORT</span>
+            <strong id="metric-transport">Pipe</strong>
+            <small>Selected mechanism</small>
+          </article>
+          <article class="metric-card accent-violet">
+            <span class="metric-label">MESSAGES / SEC</span>
+            <strong id="metric-rate">—</strong>
+            <small id="metric-rate-note">Run an experiment</small>
+          </article>
+          <article class="metric-card accent-amber">
+            <span class="metric-label">AVG. LATENCY</span>
+            <strong id="metric-latency">—</strong>
+            <small>Per message</small>
+          </article>
+          <article class="metric-card accent-blue">
+            <span class="metric-label">DATA MOVED</span>
+            <strong id="metric-data">—</strong>
+            <small>Latest run</small>
+          </article>
+        </div>
+
+        <div class="workspace-grid">
+          <article class="panel topology-panel">
+            <div class="panel-head">
+              <div><p class="kicker">PROCESS TOPOLOGY</p><h2>Communication flow</h2></div>
+              <span class="state-pill" id="topology-state">Ready</span>
+            </div>
+            <div class="topology" id="topology" aria-label="Animated IPC process topology">
+              <div class="process-node producer">
+                <span class="node-icon">P₁</span>
+                <div><strong>Producer</strong><small id="producer-pid">PID waiting</small></div>
+                <span class="node-state">READY</span>
+              </div>
+              <div class="channel" id="channel">
+                <div class="channel-track"><i></i><i></i><i></i></div>
+                <span id="channel-label">ANONYMOUS PIPE</span>
+              </div>
+              <div class="process-node consumer">
+                <span class="node-icon">P₂</span>
+                <div><strong>Consumer</strong><small id="consumer-pid">PID waiting</small></div>
+                <span class="node-state">READY</span>
+              </div>
+            </div>
+            <div class="flow-stats">
+              <div><span>Payload</span><strong id="flow-payload">1 KB</strong></div>
+              <div><span>Messages</span><strong id="flow-messages">500</strong></div>
+              <div><span>Throughput</span><strong id="flow-throughput">—</strong></div>
+            </div>
+          </article>
+
+          <aside class="panel controls-panel">
+            <div class="panel-head"><div><p class="kicker">EXPERIMENT</p><h2>Configure transfer</h2></div></div>
+            <form id="ipc-form">
+              <fieldset>
+                <legend>IPC mechanism</legend>
+                <div class="method-grid">
+                  <label class="method-card selected"><input type="radio" name="method" value="pipe" checked><span class="method-glyph">┃</span><span><strong>Pipe</strong><small>Stream</small></span></label>
+                  <label class="method-card"><input type="radio" name="method" value="queue"><span class="method-glyph">≡</span><span><strong>Queue</strong><small>Messages</small></span></label>
+                  <label class="method-card"><input type="radio" name="method" value="shared_memory"><span class="method-glyph">▦</span><span><strong>Shared</strong><small>Memory</small></span></label>
+                  <label class="method-card"><input type="radio" name="method" value="socket"><span class="method-glyph">⌁</span><span><strong>Socket</strong><small>Network</small></span></label>
+                </div>
+              </fieldset>
+              <label class="range-field"><span><b>Messages</b><output id="messages-output">500</output></span><input id="messages" type="range" min="100" max="5000" step="100" value="500"></label>
+              <label class="range-field"><span><b>Payload size</b><output id="payload-output">1 KB</output></span><input id="payload-size" type="range" min="64" max="65536" step="64" value="1024"></label>
+              <button class="primary-button" type="submit" id="run-ipc"><span>▶</span> Run IPC experiment</button>
+            </form>
+          </aside>
+        </div>
+
+        <article class="panel console-panel">
+          <div class="panel-head">
+            <div><p class="kicker">EVENT STREAM</p><h2>Execution timeline</h2></div>
+            <button class="text-button" id="clear-console">Clear</button>
+          </div>
+          <div class="console" id="console" aria-live="polite">
+            <div class="log-row muted"><time>--:--:--</time><span class="log-level">SYSTEM</span><p>Engine ready. Configure an experiment to begin.</p></div>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="view-race">
+        <div class="race-layout">
+          <article class="panel race-hero">
+            <div class="panel-head"><div><p class="kicker">SHARED COUNTER</p><h2>See a race condition happen</h2></div><span class="state-pill warning" id="race-state">Unprotected</span></div>
+            <p class="supporting-copy">Multiple processes increment the same value. Run without a lock to expose lost updates, then enable synchronization and compare.</p>
+            <div class="counter-stage">
+              <div class="counter-orbit orbit-one"></div><div class="counter-orbit orbit-two"></div>
+              <span class="counter-label">ACTUAL VALUE</span>
+              <strong id="race-actual">0</strong>
+              <small>expected <span id="race-expected">10,000</span></small>
+            </div>
+            <div class="race-result-grid">
+              <div><span>Lost updates</span><strong id="race-lost">—</strong></div>
+              <div><span>Accuracy</span><strong id="race-accuracy">—</strong></div>
+              <div><span>Elapsed</span><strong id="race-elapsed">—</strong></div>
+            </div>
+          </article>
+          <aside class="panel controls-panel">
+            <div class="panel-head"><div><p class="kicker">CONCURRENCY</p><h2>Worker settings</h2></div></div>
+            <form id="race-form">
+              <label class="range-field"><span><b>Worker processes</b><output id="workers-output">4</output></span><input id="workers" type="range" min="2" max="12" step="1" value="4"></label>
+              <label class="range-field"><span><b>Iterations per worker</b><output id="iterations-output">2,500</output></span><input id="iterations" type="range" min="500" max="10000" step="500" value="2500"></label>
+              <label class="switch-row"><span><b>Synchronization lock</b><small>Protect the critical section</small></span><input type="checkbox" id="synchronized"><i></i></label>
+              <div class="concept-note"><span>!</span><p><strong>Prediction</strong><br><span id="race-prediction">The final value may be lower because updates overlap.</span></p></div>
+              <button class="primary-button danger" type="submit" id="run-race"><span>⚡</span> Start race experiment</button>
+            </form>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="view-benchmark">
+        <article class="panel benchmark-panel">
+          <div class="panel-head benchmark-head">
+            <div><p class="kicker">CONTROLLED COMPARISON</p><h2>IPC performance benchmark</h2><p class="supporting-copy">Run the same workload through all four mechanisms.</p></div>
+            <form id="benchmark-form" class="inline-form">
+              <label>Messages <input id="benchmark-messages" type="number" min="10" max="5000" value="500"></label>
+              <label>Payload <select id="benchmark-payload"><option value="1024">1 KB</option><option value="4096" selected>4 KB</option><option value="16384">16 KB</option><option value="65536">64 KB</option></select></label>
+              <button class="primary-button" type="submit" id="run-benchmark">Run comparison</button>
+            </form>
+          </div>
+          <div class="chart-wrap" id="benchmark-chart">
+            <div class="empty-chart"><span>▥</span><strong>No benchmark data yet</strong><small>Run a comparison to generate live measurements.</small></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Mechanism</th><th>Latency</th><th>Throughput</th><th>Messages/sec</th><th>Worker PID</th></tr></thead>
+              <tbody id="benchmark-body"><tr><td colspan="5" class="empty-cell">Results will appear here</td></tr></tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="view" id="view-tools">
+        <div class="tool-metrics">
+          <article class="metric-card accent-teal">
+            <span class="metric-label">TOOLS READY</span>
+            <strong id="tools-ready">— / 3</strong>
+            <small>Detected on this computer</small>
+          </article>
+          <article class="metric-card accent-violet">
+            <span class="metric-label">INSPECTION TARGET</span>
+            <strong id="tools-target-pid">PID —</strong>
+            <small>SyncScope server process</small>
+          </article>
+          <article class="metric-card accent-amber">
+            <span class="metric-label">REGISTRY SCOPE</span>
+            <strong>HKCU only</strong>
+            <small>No administrator access needed</small>
+          </article>
+        </div>
+
+        <div class="tool-lab-grid">
+          <div class="tool-stack">
+            <article class="panel tool-card" data-tool="powershell">
+              <div class="tool-card-icon powershell-icon">PS</div>
+              <div class="tool-card-copy">
+                <div class="tool-title-row"><h2>PowerShell inspection</h2><span class="tool-status checking" id="status-powershell">Checking</span></div>
+                <p>Run <code>Get-Process</code> against SyncScope and inspect its thread count, handles, working set, and virtual memory.</p>
+                <code class="command-preview" id="command-powershell">Get-Process -Id $SyncScopePID</code>
+              </div>
+              <button class="secondary-button tool-action" id="run-powershell">Inspect process</button>
+            </article>
+
+            <article class="panel tool-card" data-tool="wmi">
+              <div class="tool-card-icon wmi-icon">WI</div>
+              <div class="tool-card-copy">
+                <div class="tool-title-row"><h2>WMI / CIM query</h2><span class="tool-status checking" id="status-wmi">Checking</span></div>
+                <p>Query the <code>Win32_Process</code> class and compare Windows management data with the PowerShell result.</p>
+                <code class="command-preview" id="command-wmi">Get-CimInstance Win32_Process -Filter "ProcessId = …"</code>
+              </div>
+              <button class="secondary-button tool-action" id="run-wmi">Query WMI</button>
+            </article>
+
+            <article class="panel tool-card" data-tool="registry">
+              <div class="tool-card-icon registry-icon">RG</div>
+              <div class="tool-card-copy">
+                <div class="tool-title-row"><h2>Registry experiment</h2><span class="tool-status checking" id="status-registry">Checking</span></div>
+                <p>Create and query a safe project key using <code>reg.exe</code>, then inspect the same values visually in Regedit.</p>
+                <code class="command-preview">HKCU\Software\SyncScopeLab</code>
+              </div>
+              <div class="tool-actions">
+                <button class="secondary-button tool-action" id="run-registry">Create &amp; query</button>
+                <button class="ghost-button tool-action" id="open-regedit">Open Regedit</button>
+              </div>
+            </article>
+          </div>
+
+          <aside class="panel evidence-panel">
+            <div class="panel-head">
+              <div><p class="kicker">LIVE EVIDENCE</p><h2 id="evidence-title">Select a tool</h2></div>
+              <span class="state-pill" id="evidence-state">Ready</span>
+            </div>
+            <div class="evidence-empty" id="evidence-empty">
+              <span class="evidence-mark">⌘</span>
+              <strong>Run a guided inspection</strong>
+              <p>The exact command and its live Windows output will appear here for your demonstration.</p>
+            </div>
+            <div class="evidence-result" id="evidence-result" hidden>
+              <div class="evidence-command"><span>COMMAND</span><code id="evidence-command">—</code></div>
+              <dl class="evidence-grid" id="evidence-grid"></dl>
+              <pre id="evidence-raw" hidden></pre>
+            </div>
+            <div class="demo-checklist">
+              <p class="kicker">PRESENTATION FLOW</p>
+              <ol>
+                <li><span>1</span><p><strong>Run PowerShell</strong><small>Explain process, threads, handles, and memory.</small></p></li>
+                <li><span>2</span><p><strong>Query WMI</strong><small>Show the same PID through Win32_Process.</small></p></li>
+                <li><span>3</span><p><strong>Use the Registry</strong><small>Create values with reg.exe and verify in Regedit.</small></p></li>
+              </ol>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="view" id="view-learn">
+        <div class="learn-intro"><p class="kicker">REFERENCE GUIDE</p><h2>Choose the right IPC mechanism</h2><p>Each technique makes a different trade-off between speed, isolation, structure, and reach.</p></div>
+        <div class="learn-grid">
+          <article class="learn-card teal"><span class="method-glyph">┃</span><h3>Pipes</h3><p>A simple byte stream, ideal for related processes and one-way producer–consumer flows.</p><dl><div><dt>Strength</dt><dd>Simple & ordered</dd></div><div><dt>Scope</dt><dd>Local machine</dd></div></dl></article>
+          <article class="learn-card violet"><span class="method-glyph">≡</span><h3>Message queues</h3><p>Structured, buffered messages that decouple senders from receivers.</p><dl><div><dt>Strength</dt><dd>Clear boundaries</dd></div><div><dt>Scope</dt><dd>Local processes</dd></div></dl></article>
+          <article class="learn-card amber"><span class="method-glyph">▦</span><h3>Shared memory</h3><p>The fastest path for large data, with synchronization handled separately.</p><dl><div><dt>Strength</dt><dd>Zero-copy access</dd></div><div><dt>Risk</dt><dd>Race conditions</dd></div></dl></article>
+          <article class="learn-card blue"><span class="method-glyph">⌁</span><h3>Sockets</h3><p>Flexible communication that works locally and across a network.</p><dl><div><dt>Strength</dt><dd>Distributed reach</dd></div><div><dt>Scope</dt><dd>Local or remote</dd></div></dl></article>
+        </div>
+        <article class="panel comparison-card">
+          <div class="panel-head"><div><p class="kicker">DECISION MATRIX</p><h2>At a glance</h2></div></div>
+          <div class="table-wrap"><table><thead><tr><th>Mechanism</th><th>Data model</th><th>Synchronization</th><th>Best used for</th></tr></thead><tbody><tr><td>Pipe</td><td>Byte stream</td><td>Built into stream</td><td>Parent–child pipelines</td></tr><tr><td>Queue</td><td>Messages</td><td>Queue-managed</td><td>Task distribution</td></tr><tr><td>Shared memory</td><td>Raw memory</td><td>Explicitly required</td><td>Large, high-speed data</td></tr><tr><td>Socket</td><td>Byte stream</td><td>Protocol-managed</td><td>Client–server systems</td></tr></tbody></table></div>
+        </article>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast-region" id="toasts" aria-live="assertive"></div>
+  <script src="/app.js" defer></script>
+</body>
+</html>
