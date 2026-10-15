@@ -6,3 +6,11 @@ __pycache__/
 Thumbs.db
 .idea/
 .vscode/
+.venv/
+# Generated presentation previews, private build scripts and delivered decks.
+artifacts/
+presentations/
+ppt_build/
+ppt_output/
+ppt_review/
+ppt_review_montage.png

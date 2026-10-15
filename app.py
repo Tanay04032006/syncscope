@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 from collections import OrderedDict
 from http import HTTPStatus
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -136,6 +137,11 @@ def _execute(job_id: str, kind: str, settings: dict) -> None:
 class SyncScopeHandler(SimpleHTTPRequestHandler):
     server_version = "SyncScope/1.0"
 
+    def end_headers(self) -> None:
+        # Reloads must pick up local code changes rather than stale JS or CSS.
+        self.send_header("Cache-Control", "no-store")
+        super().end_headers()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(STATIC_DIR), **kwargs)
 
@@ -147,7 +153,6 @@ class SyncScopeHandler(SimpleHTTPRequestHandler):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
-        self.send_header("Cache-Control", "no-store")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.end_headers()
         self.wfile.write(body)
@@ -224,13 +229,24 @@ class SyncScopeHandler(SimpleHTTPRequestHandler):
             self._json({"error": str(exc)}, HTTPStatus.BAD_REQUEST)
 
 
-def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = False) -> None:
+def run(host: str = "127.0.0.1", port: int = 8765, open_browser: bool = False, auto_port: bool = False) -> None:
     mp.freeze_support()
-    server = ThreadingHTTPServer((host, port), SyncScopeHandler)
+    for candidate in range(port, min(port + (20 if auto_port else 1), 65536)):
+        try:
+            server = ThreadingHTTPServer((host, candidate), SyncScopeHandler)
+            break
+        except OSError as exc:
+            if not auto_port or (exc.errno != errno.EADDRINUSE and getattr(exc, "winerror", None) not in {10048, 10013}):
+                raise
+    else:
+        raise RuntimeError("No available port found. Close an old SyncScope terminal or choose another --port.")
+    if candidate != port:
+        print(f"Port {port} is busy. Using port {candidate}; no existing application was stopped.")
+    port = server.server_address[1]
     print(f"SyncScope is running at http://{host}:{port}")
     print("Press Ctrl+C to stop.")
     if open_browser:
-        threading.Timer(0.7, lambda: webbrowser.open(f"http://{host}:{port}")).start()
+        threading.Timer(0.7, lambda: webbrowser.open(f"http://{host}:{port}/?v=ipc-scenes-3")).start()
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -244,5 +260,9 @@ if __name__ == "__main__":
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--open", action="store_true", help="Open SyncScope in the default browser")
+    parser.add_argument("--no-open", action="store_false", dest="open", help="Do not open a browser")
+    parser.add_argument("--auto-port", action="store_true", help="Try nearby ports when the requested port is busy")
     arguments = parser.parse_args()
-    run(arguments.host, arguments.port, arguments.open)
+    if not 1 <= arguments.port <= 65535:
+        parser.error("--port must be between 1 and 65535")
+    run(arguments.host, arguments.port, arguments.open, arguments.auto_port)

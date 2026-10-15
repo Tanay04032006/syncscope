@@ -7,7 +7,7 @@
   <meta name="theme-color" content="#0a0c12">
   <title>SyncScope — IPC & Concurrency Lab</title>
   <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="/styles.css?v=ipc-scenes-3">
 </head>
 <body>
   <div class="app-shell">
@@ -84,7 +84,7 @@
         <div class="workspace-grid">
           <article class="panel topology-panel">
             <div class="panel-head">
-              <div><p class="kicker">PROCESS TOPOLOGY</p><h2>Communication flow</h2></div>
+              <div><p class="kicker">IPC VISUALIZER · V3</p><h2>Communication flow</h2></div>
               <span class="state-pill" id="topology-state">Ready</span>
             </div>
             <div class="topology" id="topology" aria-label="Animated IPC process topology">
@@ -94,14 +94,20 @@
                 <span class="node-state">READY</span>
               </div>
               <div class="channel" id="channel">
-                <div class="channel-track"><i></i><i></i><i></i></div>
-                <span id="channel-label">ANONYMOUS PIPE</span>
+                <span id="channel-label">Loading IPC Visualizer V3…</span>
               </div>
               <div class="process-node consumer">
                 <span class="node-icon">P₂</span>
                 <div><strong>Consumer</strong><small id="consumer-pid">PID waiting</small></div>
                 <span class="node-state">READY</span>
               </div>
+            </div>
+            <div class="ipc-explanation">
+              <p id="transfer-error" class="transfer-error" role="alert" hidden></p>
+              <div class="ipc-explanation-head"><strong id="mechanism-title"></strong><button type="button" class="text-button" id="replay-mechanism">▶ Replay explanation</button></div>
+              <p id="mechanism-description"></p>
+              <p class="mechanism-step" id="mechanism-step" aria-live="polite"></p>
+              <small>Illustrative sequence, slowed for learning. Measurements below come from a separate real process transfer.</small>
             </div>
             <div class="flow-stats">
               <div><span>Payload</span><strong id="flow-payload">1 KB</strong></div>
@@ -291,6 +297,6 @@
   </div>
 
   <div class="toast-region" id="toasts" aria-live="assertive"></div>
-  <script src="/app.js" defer></script>
+  <script src="/app.js?v=ipc-scenes-3" defer></script>
 </body>
 </html>

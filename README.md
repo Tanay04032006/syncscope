@@ -7,6 +7,8 @@ SyncScope turns operating-system concepts into experiments you can see and measu
 ## Highlights
 
 - Run real IPC transfers and watch the producer–consumer topology react.
+- Each IPC method has its own replayable learning sequence: pipe frames, FIFO messages, shared-memory semaphore handoff, or socket chunks. These illustrations are separate from real transfer timings.
+- Consumer workers report received byte counts; incomplete transfers fail verification. Shared-memory workers read the full payload on each handoff.
 - Measure latency, throughput, message rate, transferred bytes, and worker PIDs.
 - Trigger an actual race condition with multiple processes sharing one counter.
 - Enable a lock and compare the corrected result.
@@ -20,13 +22,31 @@ SyncScope turns operating-system concepts into experiments you can see and measu
 
 Double-click `run.bat`.
 
+The launcher finds Python 3.10+ automatically (project `.venv`, `py -3`, or `python`). Keep its terminal open while using SyncScope. Administrator access is not required to start the app. Opening Regedit requests its own Windows permission prompt.
+
 Or start it from a terminal:
 
 ```powershell
-python app.py --open
+python app.py --open --auto-port
 ```
 
-SyncScope opens at [http://127.0.0.1:8765](http://127.0.0.1:8765). Press `Ctrl+C` in the terminal to stop it.
+SyncScope normally opens at [http://127.0.0.1:8765](http://127.0.0.1:8765). If that port is occupied, the launcher tries the next available port and opens the correct URL. Check the terminal for the active address. Press `Ctrl+C` to stop it. After changing code, stop the old terminal and launch again.
+
+To start without opening a browser, run `run.bat --no-open`. To choose a port, run `run.bat --port 9000`.
+
+## Project folder
+
+- `run.bat`: Windows launcher.
+- `app.py`: local server and experiment API.
+- `ipc_engine.py`: actual IPC transfers and concurrency experiments.
+- `windows_tools.py`: PowerShell, WMI/CIM and Registry integrations.
+- `static/`: browser interface (HTML, CSS and JavaScript).
+- `tests/`: automated checks. Optional interface check: `node tests/test_frontend.cjs` (Node.js is only needed for this test).
+- `presentations/`: local delivered PowerPoint files, when present.
+- `artifacts/`: local presentation build files and previews, when present.
+- `PROJECT_REPORT.md`: report and demonstration guide.
+
+Presentation artifacts are preserved locally and excluded from source control. They are not required to run SyncScope.
 
 ## Run on Linux or macOS
 

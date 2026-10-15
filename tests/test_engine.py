@@ -9,6 +9,8 @@ class EngineTests(unittest.TestCase):
             with self.subTest(method=method):
                 result = run_benchmark(method, messages=20, payload_size=128)
                 self.assertEqual(result["bytes_transferred"], 2560)
+                self.assertEqual(result["received_bytes"], 2560)
+                self.assertTrue(result["verified"])
                 self.assertGreater(result["messages_per_second"], 0)
                 self.assertTrue(result["worker_pids"])
 

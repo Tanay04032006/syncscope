@@ -16,46 +16,51 @@ from typing import Any, Callable
 
 
 def _pipe_reader(connection, count: int, ready, pid_queue) -> None:
-    pid_queue.put(os.getpid())
     ready.set()
+    received = 0
     for _ in range(count):
-        connection.recv_bytes()
+        received += len(connection.recv_bytes())
     connection.close()
+    pid_queue.put({"pid": os.getpid(), "received_bytes": received})
 
 
 def _queue_reader(message_queue, count: int, ready, pid_queue) -> None:
-    pid_queue.put(os.getpid())
     ready.set()
+    received = 0
     for _ in range(count):
-        message_queue.get()
+        received += len(message_queue.get())
+    pid_queue.put({"pid": os.getpid(), "received_bytes": received})
 
 
 def _shared_memory_reader(
     memory_name: str,
     count: int,
+    payload_size: int,
     data_ready,
     consumed,
     ready,
     pid_queue,
 ) -> None:
     memory = shared_memory.SharedMemory(name=memory_name)
-    pid_queue.put(os.getpid())
     ready.set()
     checksum = 0
+    received = 0
     try:
         for _ in range(count):
             data_ready.acquire()
-            checksum ^= memory.buf[0]
+            payload = bytes(memory.buf[:payload_size])
+            received += len(payload)
+            checksum ^= payload[0]
             consumed.release()
     finally:
         memory.close()
+    pid_queue.put({"pid": os.getpid(), "received_bytes": received})
     # Keep the read observable to the interpreter.
     if checksum < 0:  # pragma: no cover
         raise RuntimeError("unreachable")
 
 
 def _socket_reader(sock, count: int, payload_size: int, ready, pid_queue) -> None:
-    pid_queue.put(os.getpid())
     ready.set()
     remaining = count * payload_size
     while remaining:
@@ -64,6 +69,7 @@ def _socket_reader(sock, count: int, payload_size: int, ready, pid_queue) -> Non
             break
         remaining -= len(data)
     sock.close()
+    pid_queue.put({"pid": os.getpid(), "received_bytes": count * payload_size - remaining})
 
 
 def _race_worker(counter, iterations: int, lock, synchronized: bool, race_barrier, pid_queue) -> None:
@@ -84,8 +90,10 @@ def _race_worker(counter, iterations: int, lock, synchronized: bool, race_barrie
                 race_barrier.wait()
 
 
-def _result(method: str, elapsed: float, messages: int, payload_size: int, pids: list[int]) -> dict[str, Any]:
+def _result(method: str, elapsed: float, messages: int, payload_size: int, receipt: dict) -> dict[str, Any]:
     total_bytes = messages * payload_size
+    if receipt["received_bytes"] != total_bytes:
+        raise RuntimeError(f"Incomplete {method} transfer: expected {total_bytes} bytes, received {receipt['received_bytes']}")
     safe_elapsed = max(elapsed, 1e-9)
     return {
         "method": method,
@@ -94,7 +102,9 @@ def _result(method: str, elapsed: float, messages: int, payload_size: int, pids:
         "throughput_mbps": round((total_bytes * 8 / safe_elapsed) / 1_000_000, 3),
         "messages_per_second": round(messages / safe_elapsed),
         "bytes_transferred": total_bytes,
-        "worker_pids": pids,
+        "worker_pids": [receipt["pid"]],
+        "received_bytes": receipt["received_bytes"],
+        "verified": True,
     }
 
 
@@ -117,7 +127,7 @@ def benchmark_pipe(messages: int, payload_size: int) -> dict[str, Any]:
         process.terminate()
         process.join()
         raise TimeoutError("Pipe worker did not finish")
-    return _result("pipe", elapsed, messages, payload_size, [pid_queue.get(timeout=1)])
+    return _result("pipe", elapsed, messages, payload_size, pid_queue.get(timeout=1))
 
 
 def benchmark_queue(messages: int, payload_size: int) -> dict[str, Any]:
@@ -137,7 +147,7 @@ def benchmark_queue(messages: int, payload_size: int) -> dict[str, Any]:
         process.terminate()
         process.join()
         raise TimeoutError("Queue worker did not finish")
-    result = _result("queue", elapsed, messages, payload_size, [pid_queue.get(timeout=1)])
+    result = _result("queue", elapsed, messages, payload_size, pid_queue.get(timeout=1))
     message_queue.close()
     return result
 
@@ -150,7 +160,7 @@ def benchmark_shared_memory(messages: int, payload_size: int) -> dict[str, Any]:
     pid_queue = mp.Queue()
     process = mp.Process(
         target=_shared_memory_reader,
-        args=(memory.name, messages, data_ready, consumed, ready, pid_queue),
+        args=(memory.name, messages, payload_size, data_ready, consumed, ready, pid_queue),
     )
     process.start()
     ready.wait(5)
@@ -167,7 +177,7 @@ def benchmark_shared_memory(messages: int, payload_size: int) -> dict[str, Any]:
             process.terminate()
             process.join()
             raise TimeoutError("Shared-memory worker did not finish")
-        return _result("shared_memory", elapsed, messages, payload_size, [pid_queue.get(timeout=1)])
+        return _result("shared_memory", elapsed, messages, payload_size, pid_queue.get(timeout=1))
     finally:
         memory.close()
         memory.unlink()
@@ -193,7 +203,7 @@ def benchmark_socket(messages: int, payload_size: int) -> dict[str, Any]:
         process.terminate()
         process.join()
         raise TimeoutError("Socket worker did not finish")
-    return _result("socket", elapsed, messages, payload_size, [pid_queue.get(timeout=1)])
+    return _result("socket", elapsed, messages, payload_size, pid_queue.get(timeout=1))
 
 
 BENCHMARKS: dict[str, Callable[[int, int], dict[str, Any]]] = {

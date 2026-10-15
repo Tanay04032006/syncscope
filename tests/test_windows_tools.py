@@ -3,7 +3,7 @@ import subprocess
 import unittest
 from unittest.mock import patch
 
-from windows_tools import powershell_process_snapshot, registry_demo, tool_status, wmi_process_snapshot
+from windows_tools import launch_regedit, powershell_process_snapshot, registry_demo, tool_status, wmi_process_snapshot
 
 
 def completed(stdout: str = "") -> subprocess.CompletedProcess[str]:
@@ -11,6 +11,14 @@ def completed(stdout: str = "") -> subprocess.CompletedProcess[str]:
 
 
 class WindowsToolTests(unittest.TestCase):
+    @patch("windows_tools._require_windows")
+    @patch("windows_tools.shutil.which", return_value=r"C:\Windows\regedit.exe")
+    @patch("windows_tools.os.startfile", create=True)
+    def test_regedit_requests_uac_without_elevating_server(self, startfile, which, require):
+        result = launch_regedit()
+        startfile.assert_called_once_with(r"C:\Windows\regedit.exe", "runas")
+        self.assertEqual(result["status"], "launched")
+
     def test_tool_status_reports_three_guided_labs(self):
         tools = tool_status()
         self.assertEqual([tool["id"] for tool in tools], ["powershell", "wmi", "registry"])

@@ -8,6 +8,77 @@ const methodNames = {
   socket: "Socket",
 };
 
+const mechanisms = {
+  pipe: {
+    title: "Pipe · sequential byte transfer",
+    description: "send_bytes() writes framed bytes into a one-way connection. recv_bytes() reads each frame in order.",
+    markup: '<div class="pipe-buffer"><i>A</i><i>B</i><i>C</i></div><span>WRITE → PIPE BUFFER → READ</span>',
+    steps: ["Producer writes frame A into the pipe.", "Bytes travel through the operating-system buffer.", "Consumer reads frame A, then B and C in order."],
+  },
+  queue: {
+    title: "Queue · buffered FIFO messages",
+    description: "put() serializes a Python object. The queue buffers messages until get() removes the next item. This experiment has one producer and one consumer.",
+    markup: '<div class="queue-buffer"><i>M3</i><i>M2</i><i>M1</i></div><span>ENQUEUE → FIFO → DEQUEUE</span>',
+    steps: ["Producer enqueues distinct messages M1, M2 and M3.", "Messages wait in the bounded queue while the consumer catches up.", "Consumer dequeues M1 first, preserving producer order."],
+  },
+  shared_memory: {
+    title: "Shared memory · one region, coordinated access",
+    description: "Both processes map the same memory region. The producer signals data_ready after writing; the consumer reads the payload and signals consumed before the next write.",
+    markup: '<div class="shared-region"><b>SHARED REGION</b><div><i>00</i><i>00</i><i>00</i><i>00</i></div><em>data_ready / consumed</em></div>',
+    steps: ["Producer writes the shared region; consumer waits on data_ready.", "Producer releases data_ready. Consumer reads the same region.", "Consumer releases consumed, allowing the producer to overwrite the slot."],
+  },
+  socket: {
+    title: "Socket · connected byte-stream endpoints",
+    description: "A local socket pair connects the processes. sendall() sends bytes; recv() may receive chunks of different sizes. The consumer counts bytes until the whole payload arrives.",
+    markup: '<div class="socket-stream"><b>TX</b><i>bytes</i><b>RX</b></div><span>SENDALL → LOCAL SOCKET PAIR → RECV</span>',
+    steps: ["Two connected local socket endpoints are created.", "Producer sends bytes; consumer assembles received chunks.", "Producer shuts down writing. Consumer verifies the total byte count."],
+  },
+};
+
+let explanationTimer;
+function processNode(role, label) {
+  return `<div class="process-node ${role}"><span class="node-icon">${role === "producer" ? "P₁" : "P₂"}</span><div><strong>${label}</strong><small id="${role}-pid">PID waiting</small></div><span class="node-state">READY</span></div>`;
+}
+
+function mechanismScene(method) {
+  const producer = processNode("producer", method === "socket" ? "Endpoint A" : "Producer");
+  const consumer = processNode("consumer", method === "socket" ? "Endpoint B" : "Consumer");
+  const channel = `<div class="channel" id="channel">${mechanisms[method].markup}</div>`;
+  if (method === "pipe") return `<div class="ipc-scene pipe-scene"><div class="scene-heading">ONE-WAY PIPELINE</div>${producer}<div class="path-label">send_bytes() ↓</div>${channel}<div class="path-label">↓ recv_bytes()</div>${consumer}</div>`;
+  if (method === "queue") return `<div class="ipc-scene queue-scene"><div class="scene-heading">MESSAGE WAITING ROOM</div><div class="queue-producer">${producer}<small>put(message) ↓</small></div>${channel}<div class="queue-consumer"><small>↓ get() removes the oldest item</small>${consumer}</div></div>`;
+  if (method === "shared_memory") return `<div class="ipc-scene memory-scene"><div class="scene-heading">BOTH PROCESSES MAP ONE MEMORY REGION</div><div class="memory-peers">${producer}${consumer}</div><div class="memory-access"><span>WRITE ↓</span><span>↓ READ</span></div>${channel}<div class="memory-signals"><span>data_ready: writer signals reader</span><span>consumed: reader releases writer</span></div></div>`;
+  return `<div class="ipc-scene socket-scene"><div class="scene-heading">CONNECTED LOCAL SOCKET ENDPOINTS</div><div class="socket-peers"><div>${producer}<code>sendall(payload)</code><small>Application bytes: ABCDEF</small></div><div>${consumer}<code>recv(chunk_size)</code><small>Received chunks: AB / CDEF</small></div></div>${channel}<div class="socket-note">Byte stream: receive boundaries can differ from send boundaries.</div></div>`;
+}
+
+function playMechanism(method) {
+  clearInterval(explanationTimer);
+  const topology = $("#topology");
+  const model = mechanisms[method];
+  let step = 0;
+  topology.classList.add("explaining");
+  function showStep() {
+    topology.dataset.step = String(step);
+    $("#mechanism-step").textContent = `${step + 1} / 3 · ${model.steps[step]}`;
+    if (method === "shared_memory") {
+      $$(".shared-region i").forEach((cell) => cell.textContent = "53");
+      $(".shared-region em").textContent = ["WRITE · consumer waiting", "data_ready → READ", "consumed → next WRITE"][step];
+    }
+    if (method === "queue") {
+      $(".queue-buffer").dataset.phase = String(step);
+    }
+  }
+  showStep();
+  explanationTimer = setInterval(() => {
+    step += 1;
+    if (step === model.steps.length) {
+      clearInterval(explanationTimer);
+      topology.classList.remove("explaining");
+      return;
+    }
+    showStep();
+  }, 1600);
+}
+
 const pageMeta = {
   lab: ["INTERPROCESS COMMUNICATION", "Live IPC Laboratory"],
   race: ["CONCURRENCY CONTROL", "Race Condition Laboratory"],
@@ -117,7 +188,19 @@ function updateMethod() {
   $$(".method-card").forEach((card) => card.classList.toggle("selected", card.contains(selected)));
   const name = methodNames[selected.value];
   $("#metric-transport").textContent = name;
-  $("#channel-label").textContent = name.toUpperCase();
+  const method = selected.value;
+  $("#topology").dataset.method = method;
+  $("#topology").innerHTML = mechanismScene(method);
+  $("#mechanism-title").textContent = mechanisms[method].title;
+  $("#mechanism-description").textContent = mechanisms[method].description;
+  $("#metric-rate").textContent = "—";
+  $("#metric-rate-note").textContent = "Run the selected mechanism";
+  ["#metric-latency", "#metric-data", "#flow-throughput"].forEach((id) => $(id).textContent = "—");
+  $("#consumer-pid").textContent = "PID waiting";
+  $("#topology-state").textContent = "Ready";
+  $("#topology-state").classList.remove("failed");
+  $("#transfer-error").hidden = true;
+  playMechanism(method);
 }
 
 function updateSyncPrediction() {
@@ -130,6 +213,7 @@ function updateSyncPrediction() {
 }
 
 function showIpcResult(result) {
+  $$("#topology .node-state").forEach((node) => node.textContent = "VERIFIED");
   $("#metric-rate").textContent = formatNumber(result.messages_per_second);
   $("#metric-rate-note").textContent = `${result.throughput_mbps.toFixed(2)} Mbps throughput`;
   $("#metric-latency").textContent = `${result.latency_ms.toFixed(3)} ms`;
@@ -284,6 +368,7 @@ async function loadSystem() {
 }
 
 function bindEvents() {
+  $("#replay-mechanism").addEventListener("click", () => playMechanism($('input[name="method"]:checked').value));
   $$(".nav-item").forEach((item) => item.addEventListener("click", () => selectView(item.dataset.view)));
   $$("input[type=range]").forEach((input) => input.addEventListener("input", updateRangeLabels));
   $$('input[name="method"]').forEach((input) => input.addEventListener("change", updateMethod));
@@ -300,6 +385,14 @@ function bindEvents() {
     const topology = $("#topology");
     const method = $('input[name="method"]:checked').value;
     setBusy(button, true, "Experiment running");
+    $("#transfer-error").hidden = true;
+    $("#topology-state").classList.remove("failed");
+    $$("#topology .node-state").forEach((node) => node.textContent = "RUNNING");
+    ["#metric-rate", "#metric-latency", "#metric-data", "#flow-throughput"].forEach((id) => $(id).textContent = "—");
+    $("#metric-rate-note").textContent = "Measuring real transfer…";
+    $("#consumer-pid").textContent = "PID starting";
+    $$('#ipc-form input').forEach((input) => input.disabled = true);
+    playMechanism(method);
     topology.classList.add("running");
     $("#topology-state").textContent = "Transferring";
     try {
@@ -309,15 +402,22 @@ function bindEvents() {
         payload_size: Number($("#payload-size").value),
       }, (_job, events) => events.forEach(addLog));
       showIpcResult(result);
+      addLog({time: Date.now() / 1000, level: "success", message: `${methodNames[method]} consumer verified ${formatNumber(result.received_bytes)} received bytes.`});
       $("#topology-state").textContent = "Completed";
       toast(`${methodNames[method]} experiment completed`);
     } catch (error) {
       $("#topology-state").textContent = "Failed";
+      $("#topology-state").classList.add("failed");
+      $$("#topology .node-state").forEach((node) => node.textContent = "FAILED");
+      $("#transfer-error").textContent = `Transfer failed: ${error.message}`;
+      $("#transfer-error").hidden = false;
+      $("#metric-rate-note").textContent = "No measurements: transfer failed";
       addLog({ time: Date.now() / 1000, level: "error", message: error.message });
       toast(error.message, "error");
     } finally {
       topology.classList.remove("running");
       setBusy(button, false);
+      $$('#ipc-form input').forEach((input) => input.disabled = false);
     }
   });
 

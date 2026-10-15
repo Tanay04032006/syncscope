@@ -139,7 +139,12 @@ def launch_regedit() -> dict[str, str]:
     executable = shutil.which("regedit.exe") or shutil.which("regedit")
     if not executable:
         raise RuntimeError("Registry Editor is not installed")
-    subprocess.Popen([executable], creationflags=0)
+    try:
+        os.startfile(executable, "runas")
+    except OSError as exc:
+        if getattr(exc, "winerror", None) == 1223:
+            raise RuntimeError("Registry Editor was not opened because the Windows permission prompt was cancelled.") from exc
+        raise
     return {
         "tool": "Registry Editor",
         "status": "launched",
